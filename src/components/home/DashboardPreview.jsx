@@ -24,7 +24,7 @@ function DashboardPreview() {
           </div>
 
           <div>
-            <strong>Rs. 2.5M</strong>
+            <strong>Rs.2.5M</strong>
             <small>Stock Value</small>
           </div>
 
