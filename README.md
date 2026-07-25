@@ -324,15 +324,11 @@ Protected API endpoints require a JWT bearer token.
 
 ## Screenshots
 
-Project screenshots will be added for:
+### Landing Page
 
-- Landing page
-- Administrator login
-- Inventory dashboard
-- Update stock page
-- Stock report
-- Add product page
-- Analytics page
+![BGS AgriStock Landing Page](docs/screenshots/landing-page.png)
+
+Additional application screenshots will be added for the dashboard, stock management, reporting, and analytics pages.
 
 ## Security
 
