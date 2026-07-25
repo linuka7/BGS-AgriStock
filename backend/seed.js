@@ -7,61 +7,27 @@ const catalogue = [
     category: "Insecticides",
     categorySinhala: "කෘමි නාශක",
     products: [
-      {
-        name: "Trebon",
-        sizes: ["400ml", "200ml", "100ml", "50ml"],
-      },
-      {
-        name: "Marshal 20",
-        sizes: ["400ml", "200ml", "100ml"],
-      },
-      {
-        name: "Harii",
-        sizes: ["200ml", "100ml", "50ml"],
-      },
+      { name: "Trebon", sizes: ["400ml", "200ml", "100ml", "50ml"] },
+      { name: "Marshal 20", sizes: ["400ml", "200ml", "100ml"] },
+      { name: "Harii", sizes: ["200ml", "100ml", "50ml"] },
       {
         name: "Profenophus H",
         sizes: ["400ml", "200ml", "100ml", "50ml"],
       },
-      {
-        name: "Corajan",
-        sizes: ["5ml"],
-      },
-      {
-        name: "Zoro Aba",
-        sizes: ["200ml", "100ml", "50ml"],
-      },
-      {
-        name: "Mitsu Aba",
-        sizes: ["100ml", "50ml"],
-      },
-      {
-        name: "Hb Insecta",
-        sizes: ["100ml"],
-      },
-      {
-        name: "Dora",
-        sizes: ["5g"],
-      },
-      {
-        name: "Basa 50",
-        sizes: ["400ml", "200ml", "100ml"],
-      },
+      { name: "Corajan", sizes: ["5ml"] },
+      { name: "Zoro Aba", sizes: ["200ml", "100ml", "50ml"] },
+      { name: "Mitsu Aba", sizes: ["100ml", "50ml"] },
+      { name: "Hb Insecta", sizes: ["100ml"] },
+      { name: "Dora", sizes: ["5g"] },
+      { name: "Basa 50", sizes: ["400ml", "200ml", "100ml"] },
       {
         name: "Fipronil",
         sizes: ["400ml", "200ml", "100ml", "50ml"],
       },
-      {
-        name: "Cruser",
-        sizes: ["10g", "5g"],
-      },
-      {
-        name: "Fipronil GR",
-        sizes: ["500g"],
-      },
+      { name: "Cruser", sizes: ["10g", "5g"] },
+      { name: "Fipronil GR", sizes: ["500g"] },
     ],
   },
-
   {
     category: "Herbicides",
     categorySinhala: "වල් නාශක",
@@ -70,33 +36,20 @@ const catalogue = [
         name: "Glyphosate",
         sizes: ["4L", "2L", "1L", "400ml", "200ml"],
       },
-      {
-        name: "Paara",
-        sizes: ["100g"],
-      },
+      { name: "Paara", sizes: ["100g"] },
       {
         name: "Glufosinate A",
         sizes: ["4L", "2L", "1L", "400ml"],
       },
     ],
   },
-
   {
     category: "Fungicides",
     categorySinhala: "දිලීර නාශක",
     products: [
-      {
-        name: "Mancozeb",
-        sizes: ["500g"],
-      },
-      {
-        name: "Carbendazim",
-        sizes: ["100g"],
-      },
-      {
-        name: "Sulfur",
-        sizes: ["500g", "200g"],
-      },
+      { name: "Mancozeb", sizes: ["500g"] },
+      { name: "Carbendazim", sizes: ["100g"] },
+      { name: "Sulfur", sizes: ["500g", "200g"] },
     ],
   },
 ];
@@ -250,11 +203,7 @@ function createProductKey(category, name, size) {
 
 const openingStockMap = new Map(
   openingStockRecords.map((item) => [
-    createProductKey(
-      item.category,
-      item.name,
-      item.size
-    ),
+    createProductKey(item.category, item.name, item.size),
     item,
   ])
 );
@@ -276,24 +225,14 @@ function buildProducts() {
         products.push({
           name: product.name,
           category: categoryGroup.category,
-          categorySinhala:
-            categoryGroup.categorySinhala,
+          categorySinhala: categoryGroup.categorySinhala,
           size,
-          invoice:
-            openingStock?.invoice || "TO-UPDATE",
+          invoice: openingStock?.invoice || "TO-UPDATE",
           expiry: openingStock?.expiry || null,
-          received: Number(
-            openingStock?.received || 0
-          ),
-          balance: Number(
-            openingStock?.balance || 0
-          ),
-          minimum: Number(
-            openingStock?.minimum ?? 5
-          ),
-          unitPrice: Number(
-            openingStock?.unitPrice || 0
-          ),
+          received: Number(openingStock?.received || 0),
+          balance: Number(openingStock?.balance || 0),
+          minimum: Number(openingStock?.minimum ?? 5),
+          unitPrice: Number(openingStock?.unitPrice || 0),
         });
       });
     });
@@ -303,22 +242,23 @@ function buildProducts() {
 }
 
 async function seedProducts() {
-  const connection = db.promise();
+  let connection;
 
   try {
     const products = buildProducts();
 
+    connection = await db.promise().getConnection();
+
     await connection.beginTransaction();
 
-    const [existingProducts] =
-      await connection.query(`
-        SELECT
-          id,
-          name,
-          category,
-          size
-        FROM products
-      `);
+    const [existingProducts] = await connection.query(`
+      SELECT
+        id,
+        name,
+        category,
+        size
+      FROM products
+    `);
 
     const existingKeys = new Set(
       existingProducts.map((product) =>
@@ -387,19 +327,22 @@ async function seedProducts() {
     console.log(`Skipped existing products: ${skippedCount}`);
     console.log(`Catalogue records: ${products.length}`);
   } catch (error) {
-    try {
-      await db.promise().rollback();
-    } catch (rollbackError) {
-      console.error(
-        "Rollback failed:",
-        rollbackError.message
-      );
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error("Rollback failed:", rollbackError.message);
+      }
     }
 
     console.error("Database seeding failed:", error.message);
     process.exitCode = 1;
   } finally {
-    db.end();
+    if (connection) {
+      connection.release();
+    }
+
+    await db.promise().end();
   }
 }
 
