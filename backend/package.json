@@ -4,7 +4,8 @@
   "description": "Express and MySQL backend for BGS AgriStock",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node setupDatabase.js && node index.js",
+    "setup-db": "node setupDatabase.js",
     "create-admin": "node createAdmin.js",
     "seed": "node seed.js"
   },
