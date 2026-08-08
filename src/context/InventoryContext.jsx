@@ -17,10 +17,17 @@ import {
 
 const InventoryContext = createContext(null);
 
+function hasAuthToken() {
+  return Boolean(
+    localStorage.getItem("bgs_token") ||
+      sessionStorage.getItem("bgs_token")
+  );
+}
+
 export function InventoryProvider({ children }) {
   const [inventory, setInventory] = useState([]);
   const [activities, setActivities] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   /* =========================================================
@@ -28,24 +35,37 @@ export function InventoryProvider({ children }) {
   ========================================================= */
 
   const loadInventoryData = useCallback(async () => {
+    /*
+     * Don't request protected inventory APIs before login.
+     */
+    if (!hasAuthToken()) {
+      setInventory([]);
+      setActivities([]);
+      setLoading(false);
+      setError("");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
     try {
-      const [productsResponse, activitiesResponse] =
-        await Promise.all([
-          getProducts(),
-          getActivities(),
-        ]);
+      const [
+        productsResponse,
+        activitiesResponse,
+      ] = await Promise.all([
+        getProducts(),
+        getActivities(),
+      ]);
 
       setInventory(
-        Array.isArray(productsResponse.products)
+        Array.isArray(productsResponse?.products)
           ? productsResponse.products
           : []
       );
 
       setActivities(
-        Array.isArray(activitiesResponse.activities)
+        Array.isArray(activitiesResponse?.activities)
           ? activitiesResponse.activities
           : []
       );
@@ -64,12 +84,96 @@ export function InventoryProvider({ children }) {
     }
   }, []);
 
+  /* =========================================================
+     INITIAL LOAD + AUTH CHANGE REFRESH
+  ========================================================= */
+
   useEffect(() => {
     loadInventoryData();
+
+    /*
+     * Fired after login/logout in the same browser tab.
+     */
+    const handleAuthChange = () => {
+      loadInventoryData();
+    };
+
+    /*
+     * Helpful when returning to the application after
+     * switching tabs/apps or restoring a mobile browser page.
+     */
+    const handleFocus = () => {
+      if (hasAuthToken()) {
+        loadInventoryData();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (
+        document.visibilityState === "visible" &&
+        hasAuthToken()
+      ) {
+        loadInventoryData();
+      }
+    };
+
+    /*
+     * Handles authentication changes from another tab.
+     */
+    const handleStorage = (event) => {
+      if (
+        event.key === "bgs_token" ||
+        event.key === "bgs_user"
+      ) {
+        loadInventoryData();
+      }
+    };
+
+    window.addEventListener(
+      "bgs-auth-changed",
+      handleAuthChange
+    );
+
+    window.addEventListener(
+      "focus",
+      handleFocus
+    );
+
+    window.addEventListener(
+      "storage",
+      handleStorage
+    );
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange
+    );
+
+    return () => {
+      window.removeEventListener(
+        "bgs-auth-changed",
+        handleAuthChange
+      );
+
+      window.removeEventListener(
+        "focus",
+        handleFocus
+      );
+
+      window.removeEventListener(
+        "storage",
+        handleStorage
+      );
+
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+    };
   }, [loadInventoryData]);
 
   /* =========================================================
-     ADD PRODUCT TO MYSQL
+     ADD PRODUCT
   ========================================================= */
 
   const addProduct = async (productData) => {
@@ -77,7 +181,8 @@ export function InventoryProvider({ children }) {
 
     if (!result.success || !result.product) {
       throw new Error(
-        result.message || "Unable to add product."
+        result.message ||
+          "Unable to add product."
       );
     }
 
@@ -91,7 +196,9 @@ export function InventoryProvider({ children }) {
         await getActivities();
 
       setActivities(
-        Array.isArray(activitiesResponse.activities)
+        Array.isArray(
+          activitiesResponse?.activities
+        )
           ? activitiesResponse.activities
           : []
       );
@@ -106,7 +213,7 @@ export function InventoryProvider({ children }) {
   };
 
   /* =========================================================
-     SELL PRODUCT / UPDATE MYSQL STOCK
+     SELL PRODUCT / UPDATE STOCK
   ========================================================= */
 
   const updateStock = async ({
@@ -120,16 +227,20 @@ export function InventoryProvider({ children }) {
 
     if (!result.success) {
       throw new Error(
-        result.message || "Unable to update stock."
+        result.message ||
+          "Unable to update stock."
       );
     }
 
     setInventory((current) =>
       current.map((item) =>
-        String(item.id) === String(productId)
+        String(item.id) ===
+        String(productId)
           ? {
               ...item,
-              balance: Number(result.newBalance),
+              balance: Number(
+                result.newBalance
+              ),
             }
           : item
       )
@@ -137,7 +248,10 @@ export function InventoryProvider({ children }) {
 
     if (result.activity) {
       setActivities((current) =>
-        [result.activity, ...current].slice(0, 100)
+        [
+          result.activity,
+          ...current,
+        ].slice(0, 100)
       );
     } else {
       try {
@@ -145,7 +259,9 @@ export function InventoryProvider({ children }) {
           await getActivities();
 
         setActivities(
-          Array.isArray(activitiesResponse.activities)
+          Array.isArray(
+            activitiesResponse?.activities
+          )
             ? activitiesResponse.activities
             : []
         );
@@ -161,7 +277,7 @@ export function InventoryProvider({ children }) {
   };
 
   /* =========================================================
-     RESTOCK EXISTING PRODUCT
+     RESTOCK PRODUCT
   ========================================================= */
 
   const restockInventoryProduct = async ({
@@ -183,13 +299,15 @@ export function InventoryProvider({ children }) {
 
     if (!result.success || !result.product) {
       throw new Error(
-        result.message || "Unable to restock product."
+        result.message ||
+          "Unable to restock product."
       );
     }
 
     setInventory((current) =>
       current.map((item) =>
-        String(item.id) === String(productId)
+        String(item.id) ===
+        String(productId)
           ? {
               ...item,
               received: Number(
@@ -212,7 +330,10 @@ export function InventoryProvider({ children }) {
 
     if (result.activity) {
       setActivities((current) =>
-        [result.activity, ...current].slice(0, 100)
+        [
+          result.activity,
+          ...current,
+        ].slice(0, 100)
       );
     } else {
       try {
@@ -220,7 +341,9 @@ export function InventoryProvider({ children }) {
           await getActivities();
 
         setActivities(
-          Array.isArray(activitiesResponse.activities)
+          Array.isArray(
+            activitiesResponse?.activities
+          )
             ? activitiesResponse.activities
             : []
         );
@@ -236,10 +359,7 @@ export function InventoryProvider({ children }) {
   };
 
   /* =========================================================
-     REFRESH DATA
-
-     Kept as resetInventory for compatibility with existing
-     pages. It reloads the latest MySQL data.
+     REFRESH
   ========================================================= */
 
   const resetInventory = async () => {
@@ -247,33 +367,38 @@ export function InventoryProvider({ children }) {
 
     return {
       success: true,
-      message: "Inventory refreshed successfully.",
+      message:
+        "Inventory refreshed successfully.",
     };
   };
 
   /* =========================================================
-     INVENTORY SUMMARY
+     SUMMARY
   ========================================================= */
 
   const summary = useMemo(() => {
-    const totalProducts = inventory.length;
+    const totalProducts =
+      inventory.length;
 
-    const totalUnits = inventory.reduce(
-      (total, item) =>
-        total + Number(item.balance || 0),
-      0
-    );
+    const totalUnits =
+      inventory.reduce(
+        (total, item) =>
+          total +
+          Number(item.balance || 0),
+        0
+      );
 
-    const stockValue = inventory.reduce(
-      (total, item) =>
-        total +
-        Number(item.balance || 0) *
-          Number(item.unitPrice || 0),
-      0
-    );
+    const stockValue =
+      inventory.reduce(
+        (total, item) =>
+          total +
+          Number(item.balance || 0) *
+            Number(item.unitPrice || 0),
+        0
+      );
 
-    const lowStockItems = inventory.filter(
-      (item) => {
+    const lowStockItems =
+      inventory.filter((item) => {
         const balance = Number(
           item.balance || 0
         );
@@ -282,14 +407,17 @@ export function InventoryProvider({ children }) {
           item.minimum || 0
         );
 
-        return balance > 0 && balance <= minimum;
-      }
-    ).length;
+        return (
+          balance > 0 &&
+          balance <= minimum
+        );
+      }).length;
 
-    const outOfStockItems = inventory.filter(
-      (item) =>
-        Number(item.balance || 0) === 0
-    ).length;
+    const outOfStockItems =
+      inventory.filter(
+        (item) =>
+          Number(item.balance || 0) === 0
+      ).length;
 
     return {
       totalProducts,
@@ -308,20 +436,25 @@ export function InventoryProvider({ children }) {
     error,
     addProduct,
     updateStock,
-    restockProduct: restockInventoryProduct,
+    restockProduct:
+      restockInventoryProduct,
     resetInventory,
-    refreshInventory: loadInventoryData,
+    refreshInventory:
+      loadInventoryData,
   };
 
   return (
-    <InventoryContext.Provider value={value}>
+    <InventoryContext.Provider
+      value={value}
+    >
       {children}
     </InventoryContext.Provider>
   );
 }
 
 export function useInventory() {
-  const context = useContext(InventoryContext);
+  const context =
+    useContext(InventoryContext);
 
   if (!context) {
     throw new Error(

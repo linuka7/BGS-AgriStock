@@ -56,13 +56,18 @@ function Login() {
       );
 
       storage.setItem(
-        "bgs_user",
-        JSON.stringify(result.user)
-      );
+  "bgs_user",
+  JSON.stringify(result.user)
+);
 
-      navigate("/dashboard", {
-        replace: true,
-      });
+// Tell InventoryProvider that login has completed
+window.dispatchEvent(
+  new Event("bgs-auth-changed")
+);
+
+navigate("/dashboard", {
+  replace: true,
+});
     } catch (error) {
       setErrorMessage(
         error.message ||
