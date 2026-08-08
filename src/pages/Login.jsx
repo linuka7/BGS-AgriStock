@@ -65,6 +65,10 @@ window.dispatchEvent(
   new Event("bgs-auth-changed")
 );
 
+await new Promise((resolve) =>
+  setTimeout(resolve, 150)
+);
+
 navigate("/dashboard", {
   replace: true,
 });
